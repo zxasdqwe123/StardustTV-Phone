@@ -157,6 +157,50 @@ jobs:
           GRADLEEOF
           echo "[diy] 已关闭 AAR metadata 校验任务"
 
+      - name: 6.5 剥离未发布的 media3 章节/版本功能
+        run: |
+          python3 - <<'PY2'
+          import os, pathlib
+          root = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          
+          # 1) 删除章节/版本相关的对话框与适配器
+          for name in ("ChapterDialog.java", "EditionDialog.java", "ChapterAdapter.java", "EditionAdapter.java"):
+              for f in root.rglob(name):
+                  print("[diy] 删除:", f.relative_to(root))
+                  f.unlink()
+          
+          # 2) PlayerManager：去掉 media3 章节/版本调用
+          pm = root / "app/src/main/java/com/fongmi/android/tv/player/PlayerManager.java"
+          s = pm.read_text(encoding="utf-8")
+          s = s.replace("import androidx.media3.common.MediaChapter;\n", "")
+          s = s.replace("import androidx.media3.common.MediaEdition;\n", "")
+          s = s.replace("    public List<MediaChapter> getCurrentMediaChapters() {\n        return player.getCurrentMediaChapters();\n    }",
+                        "    public List<Object> getCurrentMediaChapters() {\n        return java.util.Collections.emptyList();\n    }")
+          s = s.replace("    public List<MediaEdition> getCurrentMediaEditions() {\n        return player.getCurrentMediaEditions();\n    }",
+                        "    public List<Object> getCurrentMediaEditions() {\n        return java.util.Collections.emptyList();\n    }")
+          s = s.replace("    public void selectChapter(MediaChapter chapter) {\n        player.selectChapter(chapter);\n    }\n", "")
+          s = s.replace("    public void selectEdition(MediaEdition edition) {\n        player.selectEdition(edition);\n    }\n", "")
+          s = s.replace("        @Override\n        public void onMediaChaptersChanged(@NonNull List<MediaChapter> chapters) {\n            callback.onMediaOptionsChanged();\n        }\n", "")
+          s = s.replace("        @Override\n        public void onMediaEditionsChanged(@NonNull List<MediaEdition> editions) {\n            callback.onMediaOptionsChanged();\n        }\n", "")
+          pm.write_text(s, encoding="utf-8")
+          print("[diy] PlayerManager 已处理")
+          
+          # 3) 所有 VideoActivity 里去掉对这两个对话框的引用
+          for f in root.rglob("VideoActivity.java"):
+              old = f.read_text(encoding="utf-8").splitlines(True)
+              new = [l for l in old if ("ChapterDialog" not in l and "EditionDialog" not in l)]
+              if len(new) != len(old):
+                  f.write_text("".join(new), encoding="utf-8")
+                  print("[diy] 清理引用:", f.relative_to(root), "移除", len(old) - len(new), "行")
+          
+          # 4) 检查残留
+          left = []
+          for f in root.rglob("*.java"):
+              t = f.read_text(encoding="utf-8", errors="ignore")
+              if "MediaChapter" in t or "MediaEdition" in t or "ChapterAdapter" in t or "EditionAdapter" in t:
+                  left.append(str(f.relative_to(root)))
+          print("[diy] 仍引用章节功能的文件:", left if left else "无")
+          PY2
       - name: 7. 编译手机版 APK
         run: |
           chmod +x gradlew
