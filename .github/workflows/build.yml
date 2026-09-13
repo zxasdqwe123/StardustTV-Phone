@@ -117,7 +117,13 @@ jobs:
                     "media3-database", "media3-decoder", "media3-ui", "media3-session", "media3-effect",
                     "media3-transformer"]
           if "androidx.media3:media3-common" not in t:
-              t += "\ndependencies {\n" + "".join('    implementation "androidx.media3:%s:1.8.0"%s' % (m, chr(10)) for m in MEDIA3) + "}\n"
+              t += "\ndependencies {\n"
+              for m in MEDIA3:
+                  if m == "media3-datasource-rtmp":
+                      t += '    implementation("androidx.media3:media3-datasource-rtmp:1.8.0") { exclude group: "io.antmedia" }\n'
+                  else:
+                      t += '    implementation "androidx.media3:%s:1.8.0"\n' % m
+              t += "}\n"
               g.write_text(t, encoding="utf-8")
               print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
