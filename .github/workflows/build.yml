@@ -120,9 +120,9 @@ jobs:
               t += "\ndependencies {\n"
               for mod in MEDIA3:
                   if mod == "media3-datasource-rtmp":
-                      t += '    implementation("androidx.media3:media3-datasource-rtmp:1.8.0") { exclude group: "io.antmedia" }\n'
+                      t += '    implementation("androidx.media3:media3-datasource-rtmp:1.11.1") { exclude group: "io.antmedia" }\n'
                   else:
-                      t += '    implementation "androidx.media3:%s:1.8.0"\n' % mod
+                      t += '    implementation "androidx.media3:%s:1.11.1"\n' % mod
               t += "}\n"
               g.write_text(t, encoding="utf-8")
               print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
