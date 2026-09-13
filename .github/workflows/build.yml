@@ -118,6 +118,7 @@ jobs:
                     "media3-transformer"]
           if "androidx.media3:media3-common" not in t:
               t += "\ndependencies {\n" + "".join('    implementation "androidx.media3:%s:1.8.0"%s' % (m, chr(10)) for m in MEDIA3) + "}\n"
+              g.write_text(t, encoding="utf-8")
               print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
           PY
