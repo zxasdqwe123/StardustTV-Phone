@@ -1,6 +1,6 @@
 # ============================================================
 #  星尘影视（手机版）· GitHub 云编译
-#  基座： FongMi/TV （mobile 变体 = 原生手机竖屏界面）
+#  基座： FongMi/TV，固定提交 a702b20a（v4.0.4，原生手机竖屏界面）
 #  放置路径： 仓库里的 .github/workflows/build.yml
 # ============================================================
 name: Build Stardust TV Phone
@@ -30,7 +30,6 @@ on:
     branches: [ fongmi, main ]
     paths:
       - '.github/workflows/**'
-      - '.github/diy/**'
 
 permissions:
   contents: write
@@ -39,26 +38,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. 拉取源码
+      - name: 1. 拉取源码（固定到可编译提交）
         uses: actions/checkout@v4
         with:
+          ref: a702b20a5ad604a4f1706b57fda2a074fa55f7e7
           fetch-depth: 1
 
-      - name: 2. 安装 JDK 21
+      - name: 2. 安装 JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
 
-      - name: 3. 安装 Python 3.10（Chaquopy 需要）
+      - name: 3. 安装 Python 3.8（Chaquopy 需要）
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.8'
 
       - name: 4. 安装 Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-36 build-tools;36.0.0'
+          packages: 'platforms;android-35 build-tools;35.0.0'
 
       - name: 5. 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v4
@@ -78,133 +78,64 @@ jobs:
           name = (os.environ.get("APP_NAME") or "星尘影视").strip()
           vn = (os.environ.get("VERSION_NAME") or "").strip()
           vc = (os.environ.get("VERSION_CODE") or "").strip()
-          # 1) 写回签名证书（放在 app/ 下，storeFile 用相对路径解析）
-          (root/"app").mkdir(exist_ok=True)
-          (root/"app"/"release.jks").write_bytes(base64.b64decode(pathlib.Path("/tmp/ks.b64").read_text().strip()))
-          # 2) local.properties（FongMi 构建时强制读取）
-          sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT") or ""
-          (root/"local.properties").write_text(
-          "sdk.dir=%s\nstoreFile=release.jks\nkeyAlias=tvbox\nstorePassword=tvbox123456\n" % sdk, encoding="utf-8")
-          print("[diy] local.properties ->", sdk)
-          # 3) 应用名
-          p = root/"app/src/main/res/values/strings.xml"
-          s = p.read_text(encoding="utf-8")
-          s2 = re.sub(r'(<string name="app_name">)[^<]*(</string>)', lambda m: m.group(1)+name+m.group(2), s, count=1)
-          if s2 != s:
-              p.write_text(s2, encoding="utf-8"); print("[diy] 应用名 ->", name)
-          # 4) 版本
-          g = root/"app/build.gradle"
-          t = g.read_text(encoding="utf-8")
+
+          # 1) 写回签名证书
+          (root / "app").mkdir(exist_ok=True)
+          (root / "app" / "release.jks").write_bytes(base64.b64decode(pathlib.Path("/tmp/ks.b64").read_text().strip()))
+          print("[diy] keystore -> app/release.jks")
+
+          # 2) gradle.properties 注入签名参数
+          gp = root / "gradle.properties"
+          t = gp.read_text(encoding="utf-8")
+          if "RELEASE_STORE_FILE" not in t:
+              t += "\nRELEASE_STORE_FILE=release.jks\nRELEASE_STORE_PASSWORD=tvbox123456\nRELEASE_KEY_ALIAS=tvbox\nRELEASE_KEY_PASSWORD=tvbox123456\n"
+              gp.write_text(t, encoding="utf-8")
+              print("[diy] gradle.properties 已注入")
+
+          # 3) app/build.gradle 注入 signingConfigs 并绑定 release
+          g = root / "app/build.gradle"
+          s = g.read_text(encoding="utf-8")
+          if "signingConfigs" not in s:
+              block = ("    signingConfigs {\n        myConfig {\n            storeFile file(RELEASE_STORE_FILE)\n"
+                       "            storePassword RELEASE_STORE_PASSWORD\n            keyAlias RELEASE_KEY_ALIAS\n"
+                       "            keyPassword RELEASE_KEY_PASSWORD\n            v1SigningEnabled true\n            v2SigningEnabled true\n        }\n    }\n")
+              s = s.replace("android {", "android {\n" + block, 1)
+              print("[diy] 已注入 signingConfigs")
+          if "signingConfig signingConfigs.myConfig" not in s:
+              i = s.find("buildTypes {")
+              j = s.find("release {", i) if i != -1 else -1
+              if j != -1:
+                  k = j + len("release {")
+                  s = s[:k] + "\n            signingConfig signingConfigs.myConfig" + s[k:]
+                  print("[diy] 已绑定签名到 release")
+
+          # 4) 应用名
+          p = root / "app/src/main/res/values/strings.xml"
+          x = p.read_text(encoding="utf-8")
+          x2 = re.sub(r'(<string name="app_name">)[^<]*(</string>)', lambda m: m.group(1) + name + m.group(2), x, count=1)
+          if x2 != x:
+              p.write_text(x2, encoding="utf-8")
+              print("[diy] 应用名 ->", name)
+
+          # 5) 版本（留空则不改）
           if vn:
-              t = re.sub(r'versionName "[^"]*"', 'versionName "%s"' % vn, t, count=1)
+              s = re.sub(r'versionName "[^"]*"', 'versionName "%s"' % vn, s, count=1)
           if vc:
-              t = re.sub(r'versionCode \d+', 'versionCode %s' % vc, t, count=1)
-          g.write_text(t, encoding="utf-8")
-          m = re.search(r'versionName "([^"]*)"', t); n2 = re.search(r'versionCode (\d+)', t)
-          # 5) compileSdk/targetSdk：API 37 尚未发布，自动回落到 36
-          toml = root/"gradle/libs.versions.toml"
-          if toml.exists():
-              tz = toml.read_text(encoding="utf-8")
-              tz2 = tz.replace('compileSdk = "37"', 'compileSdk = "36"').replace('targetSdk = "37"', 'targetSdk = "36"')
-              if tz2 != tz:
-                  toml.write_text(tz2, encoding="utf-8")
-                  print("[diy] compileSdk/targetSdk 37 -> 36")
-                  print("[diy] 新值:", [x for x in tz2.splitlines() if x.startswith(("compileSdk", "targetSdk"))])
-          # 6) 补上上游遗漏的 media3 依赖（当前分支源码用了 media3 但依赖表里没有）
-          MEDIA3 = ["media3-common", "media3-exoplayer", "media3-exoplayer-dash", "media3-exoplayer-hls",
-                    "media3-exoplayer-rtsp", "media3-exoplayer-smoothstreaming", "media3-datasource",
-                    "media3-datasource-okhttp", "media3-datasource-rtmp", "media3-extractor", "media3-container",
-                    "media3-database", "media3-decoder", "media3-ui", "media3-session", "media3-effect",
-                    "media3-transformer"]
-          if "androidx.media3:media3-common" not in t:
-              t += "\ndependencies {\n"
-              for mod in MEDIA3:
-                  if mod == "media3-datasource-rtmp":
-                      t += '    implementation("androidx.media3:media3-datasource-rtmp:1.11.1") { exclude group: "io.antmedia" }\n'
-                  else:
-                      t += '    implementation "androidx.media3:%s:1.11.1"\n' % mod
-              t += "}\n"
-              g.write_text(t, encoding="utf-8")
-              print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
-              # 7) 去掉 glide-avif-integration（它要求尚未发布的 compileSdk 37）
-              _tz3 = toml.read_text(encoding="utf-8")
-              _tz4 = _tz3.replace('"glide-avif-integration", ', '').replace(', "glide-avif-integration"', '')
-              if _tz4 != _tz3:
-                  toml.write_text(_tz4, encoding="utf-8")
-                  print("[diy] 已移除 glide-avif-integration")
-              # 8) Glide 5.x 全系列要求 compileSdk37 -> 降到 4.16.0（API 兼容）
-              _tz5 = toml.read_text(encoding="utf-8")
-              _tz6 = _tz5
-              if _tz6 != _tz5:
-                  toml.write_text(_tz6, encoding="utf-8")
-                  print("[diy] Glide 5.0.9 -> 4.16.0")
-              # 9) okhttp 5.5.0 要求 compileSdk37 -> 5.4.0（只要36）
-              _tz7 = toml.read_text(encoding="utf-8")
-              _tz8 = _tz7
-              if _tz8 != _tz7:
-                  toml.write_text(_tz8, encoding="utf-8")
-                  print("[diy] okhttp 5.5.0 -> 5.4.0")
-          print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
+              s = re.sub(r'versionCode \d+', 'versionCode %s' % vc, s, count=1)
+          g.write_text(s, encoding="utf-8")
+          print("[diy] 版本:", (re.search(r'versionName "([^"]*)"', s).group(1) if re.search(r'versionName "([^"]*)"', s) else "?"),
+                (re.search(r'versionCode (\d+)', s).group(1) if re.search(r'versionCode (\d+)', s) else "?"))
           PY
           rm -f /tmp/ks.b64
-          mkdir -p "$HOME/.gradle/init.d"
-          cat > "$HOME/.gradle/init.d/disable-aar-check.gradle" <<'GRADLEEOF'
-          allprojects {
-              tasks.matching { it.name.toLowerCase().contains('aarmetadata') }.configureEach {
-                  enabled = false
-              }
-          }
-          GRADLEEOF
-          echo "[diy] 已关闭 AAR metadata 校验任务"
 
-      - name: 6.5 剥离未发布的 media3 章节/版本功能
-        run: |
-          python3 - <<'PY2'
-          import os, pathlib
-          root = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
-          
-          # 1) 删除章节/版本相关的对话框与适配器
-          for name in ("ChapterDialog.java", "EditionDialog.java", "ChapterAdapter.java", "EditionAdapter.java"):
-              for f in root.rglob(name):
-                  print("[diy] 删除:", f.relative_to(root))
-                  f.unlink()
-          
-          # 2) PlayerManager：去掉 media3 章节/版本调用
-          pm = root / "app/src/main/java/com/fongmi/android/tv/player/PlayerManager.java"
-          s = pm.read_text(encoding="utf-8")
-          s = s.replace("import androidx.media3.common.MediaChapter;\n", "")
-          s = s.replace("import androidx.media3.common.MediaEdition;\n", "")
-          s = s.replace("    public List<MediaChapter> getCurrentMediaChapters() {\n        return player.getCurrentMediaChapters();\n    }",
-                        "    public List<Object> getCurrentMediaChapters() {\n        return java.util.Collections.emptyList();\n    }")
-          s = s.replace("    public List<MediaEdition> getCurrentMediaEditions() {\n        return player.getCurrentMediaEditions();\n    }",
-                        "    public List<Object> getCurrentMediaEditions() {\n        return java.util.Collections.emptyList();\n    }")
-          s = s.replace("    public void selectChapter(MediaChapter chapter) {\n        player.selectChapter(chapter);\n    }\n", "")
-          s = s.replace("    public void selectEdition(MediaEdition edition) {\n        player.selectEdition(edition);\n    }\n", "")
-          s = s.replace("        @Override\n        public void onMediaChaptersChanged(@NonNull List<MediaChapter> chapters) {\n            callback.onMediaOptionsChanged();\n        }\n", "")
-          s = s.replace("        @Override\n        public void onMediaEditionsChanged(@NonNull List<MediaEdition> editions) {\n            callback.onMediaOptionsChanged();\n        }\n", "")
-          pm.write_text(s, encoding="utf-8")
-          print("[diy] PlayerManager 已处理")
-          
-          # 3) 所有 VideoActivity 里去掉对这两个对话框的引用
-          for f in root.rglob("VideoActivity.java"):
-              old = f.read_text(encoding="utf-8").splitlines(True)
-              new = [l for l in old if ("ChapterDialog" not in l and "EditionDialog" not in l)]
-              if len(new) != len(old):
-                  f.write_text("".join(new), encoding="utf-8")
-                  print("[diy] 清理引用:", f.relative_to(root), "移除", len(old) - len(new), "行")
-          
-          # 4) 检查残留
-          left = []
-          for f in root.rglob("*.java"):
-              t = f.read_text(encoding="utf-8", errors="ignore")
-              if "MediaChapter" in t or "MediaEdition" in t or "ChapterAdapter" in t or "EditionAdapter" in t:
-                  left.append(str(f.relative_to(root)))
-          print("[diy] 仍引用章节功能的文件:", left if left else "无")
-          PY2
-      - name: 7. 编译手机版 APK
+      - name: 7. 编译手机版 APK（arm64）
         run: |
           chmod +x gradlew
-          ./gradlew assembleMobileRelease --build-cache --stacktrace
+          ./gradlew assembleMobileArm64_v8aRelease --stacktrace || {
+            echo "---- 可用 assemble 任务 ----"
+            ./gradlew tasks --all 2>/dev/null | grep -i "^assemble" | head -20 || true
+            exit 1
+          }
 
       - name: 8. 收集产物
         run: |
@@ -215,7 +146,7 @@ jobs:
       - name: 9. 上传 Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StardustTV-Phone-${{ github.run_number }}
+          name: StardustPhone-${{ github.run_number }}
           path: out/*.apk
           if-no-files-found: error
 
