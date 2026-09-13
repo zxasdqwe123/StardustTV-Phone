@@ -118,11 +118,11 @@ jobs:
                     "media3-transformer"]
           if "androidx.media3:media3-common" not in t:
               t += "\ndependencies {\n"
-              for m in MEDIA3:
-                  if m == "media3-datasource-rtmp":
+              for mod in MEDIA3:
+                  if mod == "media3-datasource-rtmp":
                       t += '    implementation("androidx.media3:media3-datasource-rtmp:1.8.0") { exclude group: "io.antmedia" }\n'
                   else:
-                      t += '    implementation "androidx.media3:%s:1.8.0"\n' % m
+                      t += '    implementation "androidx.media3:%s:1.8.0"\n' % mod
               t += "}\n"
               g.write_text(t, encoding="utf-8")
               print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
