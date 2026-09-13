@@ -1,0 +1,134 @@
+# ============================================================
+#  星尘影视（手机版）· GitHub 云编译
+#  基座： FongMi/TV （mobile 变体 = 原生手机竖屏界面）
+#  放置路径： 仓库里的 .github/workflows/build.yml
+# ============================================================
+name: Build Stardust TV Phone
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: '应用名（留空 = 星尘影视）'
+        required: false
+        default: ''
+      version_name:
+        description: '版本名（留空 = 不改）'
+        required: false
+        default: ''
+      version_code:
+        description: '版本号整数（留空 = 不改）'
+        required: false
+        default: ''
+      make_release:
+        description: '构建后发 Release'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+  push:
+    branches: [ fongmi, main ]
+    paths:
+      - '.github/workflows/**'
+      - '.github/diy/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. 拉取源码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: 2. 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 3. 安装 Python 3.10（Chaquopy 需要）
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 4. 安装 Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-37'
+
+      - name: 5. 配置 Gradle 缓存
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 6. 配置签名 + 应用名 + 版本
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          cat > /tmp/ks.b64 <<'B64EOF'
+          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
+          B64EOF
+          python3 - <<'PY'
+          import base64, os, pathlib, re
+          root = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          name = (os.environ.get("APP_NAME") or "星尘影视").strip()
+          vn = (os.environ.get("VERSION_NAME") or "").strip()
+          vc = (os.environ.get("VERSION_CODE") or "").strip()
+          # 1) 写回签名证书（放在 app/ 下，storeFile 用相对路径解析）
+          (root/"app").mkdir(exist_ok=True)
+          (root/"app"/"release.jks").write_bytes(base64.b64decode(pathlib.Path("/tmp/ks.b64").read_text().strip()))
+          # 2) local.properties（FongMi 构建时强制读取）
+          sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT") or ""
+          (root/"local.properties").write_text(
+          "sdk.dir=%s\nstoreFile=release.jks\nkeyAlias=tvbox\nstorePassword=tvbox123456\n" % sdk, encoding="utf-8")
+          print("[diy] local.properties ->", sdk)
+          # 3) 应用名
+          p = root/"app/src/main/res/values/strings.xml"
+          s = p.read_text(encoding="utf-8")
+          s2 = re.sub(r'(<string name="app_name">)[^<]*(</string>)', lambda m: m.group(1)+name+m.group(2), s, count=1)
+          if s2 != s:
+              p.write_text(s2, encoding="utf-8"); print("[diy] 应用名 ->", name)
+          # 4) 版本
+          g = root/"app/build.gradle"
+          t = g.read_text(encoding="utf-8")
+          if vn:
+              t = re.sub(r'versionName "[^"]*"', 'versionName "%s"' % vn, t, count=1)
+          if vc:
+              t = re.sub(r'versionCode \d+', 'versionCode %s' % vc, t, count=1)
+          g.write_text(t, encoding="utf-8")
+          m = re.search(r'versionName "([^"]*)"', t); n2 = re.search(r'versionCode (\d+)', t)
+          print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
+          PY
+          rm -f /tmp/ks.b64
+
+      - name: 7. 编译手机版 APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleMobileRelease --build-cache --stacktrace
+
+      - name: 8. 收集产物
+        run: |
+          mkdir -p out
+          find app/build/outputs/apk -name "*.apk" -exec cp -v {} out/ \;
+          ls -lh out/
+
+      - name: 9. 上传 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StardustTV-Phone-${{ github.run_number }}
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: 10. 发布 Release
+        if: ${{ inputs.make_release != 'false' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: phone-${{ github.run_number }}
+          name: 星尘影视（手机版）build-${{ github.run_number }}
+          files: out/*.apk
+          generate_release_notes: true
+
