@@ -132,6 +132,12 @@ jobs:
               if _tz4 != _tz3:
                   toml.write_text(_tz4, encoding="utf-8")
                   print("[diy] 已移除 glide-avif-integration")
+              # 8) Glide 5.x 全系列要求 compileSdk37 -> 降到 4.16.0（API 兼容）
+              _tz5 = toml.read_text(encoding="utf-8")
+              _tz6 = _tz5.replace('glide = "5.0.9"', 'glide = "4.16.0"')
+              if _tz6 != _tz5:
+                  toml.write_text(_tz6, encoding="utf-8")
+                  print("[diy] Glide 5.0.9 -> 4.16.0")
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
           PY
           rm -f /tmp/ks.b64
