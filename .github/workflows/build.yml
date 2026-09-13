@@ -58,7 +58,7 @@ jobs:
       - name: 4. 安装 Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-37'
+          packages: 'platforms;android-36 build-tools;36.0.0'
 
       - name: 5. 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v4
@@ -101,6 +101,15 @@ jobs:
               t = re.sub(r'versionCode \d+', 'versionCode %s' % vc, t, count=1)
           g.write_text(t, encoding="utf-8")
           m = re.search(r'versionName "([^"]*)"', t); n2 = re.search(r'versionCode (\d+)', t)
+          # 5) compileSdk/targetSdk：API 37 尚未发布，自动回落到 36
+          toml = root/"gradle/libs.versions.toml"
+          if toml.exists():
+              tz = toml.read_text(encoding="utf-8")
+              tz2 = tz.replace('compileSdk = "37"', 'compileSdk = "36"').replace('targetSdk = "37"', 'targetSdk = "36"')
+              if tz2 != tz:
+                  toml.write_text(tz2, encoding="utf-8")
+                  print("[diy] compileSdk/targetSdk 37 -> 36")
+                  print("[diy] 新值:", [x for x in tz2.splitlines() if x.startswith(("compileSdk", "targetSdk"))])
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
           PY
           rm -f /tmp/ks.b64
