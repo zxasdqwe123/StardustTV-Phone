@@ -110,6 +110,15 @@ jobs:
                   toml.write_text(tz2, encoding="utf-8")
                   print("[diy] compileSdk/targetSdk 37 -> 36")
                   print("[diy] 新值:", [x for x in tz2.splitlines() if x.startswith(("compileSdk", "targetSdk"))])
+          # 6) 补上上游遗漏的 media3 依赖（当前分支源码用了 media3 但依赖表里没有）
+          MEDIA3 = ["media3-common", "media3-exoplayer", "media3-exoplayer-dash", "media3-exoplayer-hls",
+                    "media3-exoplayer-rtsp", "media3-exoplayer-smoothstreaming", "media3-datasource",
+                    "media3-datasource-okhttp", "media3-datasource-rtmp", "media3-extractor", "media3-container",
+                    "media3-database", "media3-decoder", "media3-ui", "media3-session", "media3-effect",
+                    "media3-transformer"]
+          if "androidx.media3:media3-common" not in t:
+              t += "\ndependencies {\n" + "".join('    implementation "androidx.media3:%s:1.8.0"%s' % (m, chr(10)) for m in MEDIA3) + "}\n"
+              print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
           PY
           rm -f /tmp/ks.b64
