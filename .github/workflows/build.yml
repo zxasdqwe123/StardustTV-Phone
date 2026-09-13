@@ -138,6 +138,12 @@ jobs:
               if _tz6 != _tz5:
                   toml.write_text(_tz6, encoding="utf-8")
                   print("[diy] Glide 5.0.9 -> 4.16.0")
+              # 9) okhttp 5.5.0 要求 compileSdk37 -> 5.4.0（只要36）
+              _tz7 = toml.read_text(encoding="utf-8")
+              _tz8 = _tz7.replace('okhttp = "5.5.0"', 'okhttp = "5.4.0"')
+              if _tz8 != _tz7:
+                  toml.write_text(_tz8, encoding="utf-8")
+                  print("[diy] okhttp 5.5.0 -> 5.4.0")
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
           PY
           rm -f /tmp/ks.b64
