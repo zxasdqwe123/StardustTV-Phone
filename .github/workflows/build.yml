@@ -126,6 +126,12 @@ jobs:
               t += "}\n"
               g.write_text(t, encoding="utf-8")
               print("[diy] 已注入 media3 依赖 %d 个" % len(MEDIA3))
+              # 7) 去掉 glide-avif-integration（它要求尚未发布的 compileSdk 37）
+              _tz3 = toml.read_text(encoding="utf-8")
+              _tz4 = _tz3.replace('"glide-avif-integration", ', '').replace(', "glide-avif-integration"', '')
+              if _tz4 != _tz3:
+                  toml.write_text(_tz4, encoding="utf-8")
+                  print("[diy] 已移除 glide-avif-integration")
           print("[diy] 版本 ->", n2.group(1) if n2 else "?", m.group(1) if m else "?")
           PY
           rm -f /tmp/ks.b64
